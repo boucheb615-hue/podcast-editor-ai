@@ -1,0 +1,18 @@
+{
+  "experiment_id": "exp03_adaptive_threshold",
+  "methods": {
+    "fixed": {
+      "type": "fixed",
+      "threshold_db": -45,
+      "time_sec": 1.072,
+      "accuracy": {
+        "precision": 0.38,
+        "recall": 1.0,
+        "f1": 0.56,
+        "tp": 5,
+        "segments": 13
+      }
+    },
+    "adaptive_floor": {
+      "type": "adaptive_floor",
+      "threshold_db": 

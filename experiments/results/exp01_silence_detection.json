@@ -1,0 +1,33 @@
+{
+  "experiment_id": "exp01_silence_detection",
+  "methods": {
+    "energy": {
+      "processing_time_sec": 1.107,
+      "time_per_min": 1.107,
+      "silence_segments": 3,
+      "accuracy": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positives": 3,
+        "false_positives": 0,
+        "false_negatives": 0
+      }
+    },
+    "whisper": {
+      "processing_time_sec": 1.344,
+      "time_per_min": 1.344,
+      "silence_segments": 3,
+      "accuracy": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positives": 3,
+        "false_positives": 0,
+        "false_negatives": 0
+      }
+    }
+  },
+  "winner": "energy",
+  "reason": "Same accuracy, faster processing"
+}

@@ -1,0 +1,14 @@
+# Core dependencies
+librosa>=0.10.0        # Audio analysis
+pydub>=0.25.1          # Audio manipulation
+numpy>=1.24.0          # Numerical operations
+
+# Whisper.cpp Python bindings (optional, for Phase 2)
+# whisper-cpp-python>=1.0.0
+
+# Video processing
+ffmpeg-python>=0.2.0   # FFmpeg wrapper
+
+# Utilities
+tqdm>=4.65.0           # Progress bars
+json5>=0.9.0           # JSON with comments
