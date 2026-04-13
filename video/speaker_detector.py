@@ -231,7 +231,8 @@ class SpeakerDetector:
     
     def generate_zoom_timeline(self, segments: List[SpeakerSegment], 
                                video_width: int, video_height: int,
-                               output_width: int = 1280, output_height: int = 720) -> List[Dict]:
+                               output_width: int = 1280, output_height: int = 720,
+                               zoom_scale: float = 1.5) -> List[Dict]:
         """
         Generate zoom timeline for FFmpeg.
         
@@ -241,30 +242,27 @@ class SpeakerDetector:
             video_height: Original video height
             output_width: Desired output width (zoomed)
             output_height: Desired output height
+            zoom_scale: Zoom level (1.0 = no zoom, 2.0 = 2x zoom in)
         
         Returns:
             List of zoom commands for FFmpeg
         """
         timeline = []
         
-        # Calculate crop dimensions
-        # Maintain aspect ratio while zooming in on speaker
-        output_aspect = output_width / output_height
-        video_aspect = video_width / video_height
-        
-        if output_aspect > video_aspect:
-            # Output is wider, crop height
-            crop_height = int(video_width / output_aspect)
-            crop_width = video_width
-        else:
-            # Output is taller, crop width
-            crop_width = int(video_height * output_aspect)
-            crop_height = video_height
+        # Calculate crop dimensions based on zoom scale
+        # Higher zoom = smaller crop region
+        crop_width = int(video_width / zoom_scale)
+        crop_height = int(video_height / zoom_scale)
         
         for seg in segments:
             # Calculate crop region centered on speaker
-            x_start = max(0, min(seg.speaker_x - crop_width // 2, video_width - crop_width))
-            y_start = max(0, min(seg.speaker_y - crop_height // 2, video_height - crop_height))
+            # Ensure crop stays within video bounds
+            x_start = seg.speaker_x - crop_width // 2
+            y_start = seg.speaker_y - crop_height // 2
+            
+            # Clamp to valid range
+            x_start = max(0, min(x_start, video_width - crop_width))
+            y_start = max(0, min(y_start, video_height - crop_height))
             
             timeline.append({
                 "start": round(seg.start, 2),
