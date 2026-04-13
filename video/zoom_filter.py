@@ -7,6 +7,7 @@ based on speaker detection timeline.
 """
 
 import json
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional
 from dataclasses import dataclass
@@ -247,7 +248,7 @@ class SilenceZoomPipeline:
         return edl
     
     def generate_ffmpeg_command(self, input_path: str, edl: List[Dict],
-                                output_path: str) -> List[str]:
+                                output_path: str, use_segmented_approach: bool = True) -> List[str]:
         """
         Generate complete FFmpeg command for silence + zoom editing.
         
@@ -255,13 +256,19 @@ class SilenceZoomPipeline:
             input_path: Input video path
             edl: Edit decision list from build_edl
             output_path: Output video path
+            use_segmented_approach: If True, use concat demuxer for large edits (>4 segments)
         
         Returns:
             FFmpeg command as list of arguments
         """
         import json
+        import tempfile
         
-        # Build filter complex for all segments
+        # For large edit lists, use segmented approach (more reliable)
+        if use_segmented_approach and len(edl) > 4:
+            return self._generate_segmented_command(input_path, edl, output_path)
+        
+        # Build filter complex for all segments (original approach)
         video_filters = []
         audio_filters = []
         
@@ -319,6 +326,76 @@ class SilenceZoomPipeline:
             "-b:a", "192k",
             output_path
         ]
+        
+        return cmd
+    
+    def _generate_segmented_command(self, input_path: str, edl: List[Dict],
+                                    output_path: str) -> str:
+        """
+        Generate FFmpeg command using concat demuxer for reliability.
+        
+        This two-pass approach:
+        1. Export each segment individually
+        2. Concatenate with FFmpeg concat demuxer
+        
+        More reliable for long videos with many segments.
+        """
+        from pathlib import Path
+        import os
+        
+        work_dir = Path(output_path).parent / "temp_segments"
+        work_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Export each segment individually
+        segment_files = []
+        for i, seg in enumerate(edl):
+            seg_file = work_dir / f"seg_{i:03d}.mp4"
+            segment_files.append(seg_file.name)  # Store just filename for concat file
+            
+            if seg.get("has_zoom", False):
+                filter_str = f"crop={seg['crop_width']}:{seg['crop_height']}:{seg['crop_x']}:{seg['crop_y']},scale={self.output_width}:{self.output_height}"
+            else:
+                filter_str = f"scale={self.output_width}:{self.output_height}:force_original_aspect_ratio=decrease"
+            
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", input_path,
+                "-ss", str(seg["start"]),
+                "-to", str(seg["end"]),
+                "-vf", filter_str,
+                "-c:v", "libx264",
+                "-crf", "18",
+                "-preset", "fast",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                str(seg_file)
+            ]
+            
+            print(f"   Exporting segment {i+1}/{len(edl)}: {seg['start']:.1f}s - {seg['end']:.1f}s")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"Segment {i+1} export failed: {result.stderr[:500]}")
+        
+        # Create concat file with relative paths (ffmpeg needs to be in work_dir)
+        concat_file = work_dir / "concat.txt"
+        with open(concat_file, "w") as f:
+            for seg_file in segment_files:
+                f.write(f"file '{seg_file}'\n")
+        
+        # Concatenate all segments (run from work_dir for relative paths)
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", "concat.txt",
+            "-c", "copy",
+            str(output_path)
+        ]
+        
+        print(f"   Concatenating {len(segment_files)} segments...")
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(work_dir))
+        if result.returncode != 0:
+            raise RuntimeError(f"Concat failed: {result.stderr[:500]}")
         
         return cmd
     
